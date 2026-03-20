@@ -41,7 +41,8 @@ def convert_to_long_format(df):
 # --- Data Initialization & Pipeline ---
 @st.cache_resource
 def initialize_system():
-    base_path = '/Users/lukesfolder/Desktop/Project/Tennis/data/'
+    base_dir = os.path.dirname(__file__)
+    base_path = os.path.join(base_dir, 'data')
     
     try:
         dfs = []
@@ -49,9 +50,15 @@ def initialize_system():
             path = os.path.join(base_path, f"{year}.csv")
             if os.path.exists(path):
                 dfs.append(pd.read_csv(path))
-        df_raw = pd.concat(dfs, ignore_index=True)
+            else:
+                print(f"Warning: File {year}.csv not found at {path}")
         
+        if not dfs:
+            raise FileNotFoundError("No data files found in the 'data' directory.")
+            
+        df_raw = pd.concat(dfs, ignore_index=True)
         df = convert_to_long_format(df_raw)
+    
 
         # 1. Feature Engineering
         df = df.sort_values(by=['tourney_id', 'player_name', 'match_num'])
@@ -293,12 +300,12 @@ with tabs[3]:
             p2_opts = [p for p in active_list if p != p1]
             p2 = st.selectbox("Player 2: ", p2_opts, index=0, key="h2h_p2")
 
-        # 2. PROBABILITY & LATEST STATS (Dùng cho dự đoán hiện tại)
+        # 2. PROBABILITY & LATEST STATS
         p1_stats = df[df['player_name'] == p1].iloc[-1]
         p2_stats = df[df['player_name'] == p2].iloc[-1]
         prob = predict_batch_proba([(p1, p2)], latest_stats, h2h_cache, model, scaler, ml_features)[0]
 
-        # 3. COMPACT METRICS (Hiển thị form mới nhất)
+        # 3. COMPACT METRICS 
         with col_a:
             m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Height", f"{int(p1_stats['player_ht'])}cm" if p1_stats['player_ht'] > 0 else "N/A")
@@ -315,33 +322,31 @@ with tabs[3]:
             m9.metric("Age", f"{int(p2_stats['player_age'])}")
             m10.metric("Win Prob", f"{(1-prob):.2%}")
 
-        # ==========================================================
-        # 4. H2H CONTEXT EXTRACTION LOGIC (Tính Max Fatigue & Trung bình Form)
-        # ==========================================================
+        # 4. H2H CONTEXT EXTRACTION LOGIC 
         h2h_data_p1 = df[(df['player_name'] == p1) & (df['opponent_name'] == p2)].copy()
 
         if not h2h_data_p1.empty:
-            # 1. Tính trung bình các chỉ số Technical Form tại các trận đối đầu
+            # 1. Avg form stats H2H
             cols_to_avg = ['avg_1st_srv_won_last_10', 'avg_bp_save_rate_last_10', 'avg_ace_per_game_last_10']
             p1_avg_stats = h2h_data_p1[cols_to_avg].mean()
             
             h2h_data_p2 = df[(df['player_name'] == p2) & (df['opponent_name'] == p1)]
             p2_avg_stats = h2h_data_p2[cols_to_avg].mean()
             
-            # 2. Xử lý Logic Fatigue mới: Lấy MAX của toàn bộ giải đấu
+            # 2. Total minutes context H2H
             shared_tourneys = h2h_data_p1['tourney_id'].unique()
             
-            # Lấy toàn bộ lịch sử thi đấu của P1 và P2 tại các giải đấu chung này
+            # All matches
             df_p1_shared = df[(df['player_name'] == p1) & (df['tourney_id'].isin(shared_tourneys))]
             df_p2_shared = df[(df['player_name'] == p2) & (df['tourney_id'].isin(shared_tourneys))]
             
-            # Tìm số phút tích lũy cao nhất (trận cuối cùng) của mỗi người tại từng giải, rồi tính trung bình
+            # Average of max fatigue per tournament across shared tournaments
             p1_avg_max_fatigue = df_p1_shared.groupby('tourney_id')['acc_played_minutes'].max().mean()
             p2_avg_max_fatigue = df_p2_shared.groupby('tourney_id')['acc_played_minutes'].max().mean()
 
             chart_subtitle = f"<br><sup><i>(Average across {len(h2h_data_p1)} shared tournaments)</i></sup>"
         else:
-            # Fallback: Nếu chưa từng gặp, dùng số mới nhất hiện tại
+            # Fallback: if no H2H history, use overall latest stats as a proxy for form and fatigue
             p1_avg_stats = p1_stats
             p2_avg_stats = p2_stats
             p1_avg_max_fatigue = p1_stats['acc_played_minutes']
@@ -394,7 +399,7 @@ with tabs[3]:
             )
             st.plotly_chart(fig_radar, use_container_width=True)
 
-        # --- H2H PROCESS (PIE & TABLE - Giữ nguyên logic) ---
+        # --- H2H PROCESS (PIE & TABLE ) ---
         if not h2h_data_p1.empty:
             p1_wins = h2h_data_p1['result'].sum()
             p2_wins = len(h2h_data_p1) - p1_wins
