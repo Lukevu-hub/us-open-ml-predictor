@@ -3,6 +3,10 @@ pandas
 matplotlib
 scikit-learn
 plotly
-nbformat>=4.2.0
+nbformat
 seaborn
+altair
 streamlit
+numpy
+xgboost 
+os
