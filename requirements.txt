@@ -5,8 +5,6 @@ scikit-learn
 plotly
 nbformat
 seaborn
-altair
+altair<5
 streamlit
-numpy
-xgboost 
-os
+xgboost
