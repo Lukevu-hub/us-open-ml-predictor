@@ -68,7 +68,7 @@ def initialize_system():
         df['1st_srv_won'] = df['player_1stWon'] / df['player_1stIn']
         df['bp_save_rate'] = df['player_bpSaved'] / df['player_bpFaced']
         df['ace_per_game'] = df['player_ace'] / df['player_SvGms']
-        df.fillna(0, inplace=True)
+        # df.fillna(0, inplace=True) # This is too broad and causes errors on string columns.
 
         df = df.sort_values(by=['player_name', 'tourney_date', 'match_num'])
         roll_cols = ['1st_srv_in', '1st_srv_won', 'bp_save_rate', 'ace_per_game', 'minutes']
@@ -79,8 +79,14 @@ def initialize_system():
         df['h2h_wins'] = df.groupby(['player_name', 'opponent_name'])['result'].transform(lambda x: x.shift(1).fillna(0).cumsum())
         df['h2h_total_matches'] = df.groupby(['player_name', 'opponent_name']).cumcount()
         df['h2h_win_rate'] = np.where(df['h2h_total_matches'] > 0, df['h2h_wins'] / df['h2h_total_matches'], 0.5)
-        df.fillna(0, inplace=True)
+        # df.fillna(0, inplace=True) # This is also too broad.
 
+        # Targeted fill for numeric columns that may have NaNs from calculations, avoiding errors on string columns.
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        cols_to_fill = ['1st_srv_in', '1st_srv_won', 'bp_save_rate', 'ace_per_game'] + \
+                       [f'avg_{col}_last_10' for col in roll_cols]
+        df[cols_to_fill] = df[cols_to_fill].fillna(0)
+        
         # 3. Create O(1) H2H Cache (Dictionary) for fast lookup during simulation
         h2h_latest = df.drop_duplicates(subset=['player_name', 'opponent_name'], keep='last')
         h2h_cache = {}

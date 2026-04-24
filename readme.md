@@ -5,27 +5,38 @@
 ![XGBoost](https://img.shields.io/badge/XGBoost-172B4D?style=flat&logo=xgboost&logoColor=white)
 ![Machine Learning](https://img.shields.io/badge/Machine%20Learning-Predictive%20Analytics-green)
 
-An end-to-end Machine Learning web application designed to predict the outcomes of the US Open tennis tournament. The system combines **XGBoost** for match-level probability predictions and **Monte Carlo Simulations** for tournament-level bracket forecasting.
+## 1. The Idea & Methodology
 
-## 1. Core Methodology
+In a high-stakes environment like the US Open, deterministic models often fail because they don't account for variance and physical strain. This project solves that by splitting the logic into two core engines:
 
-This project treats sports prediction not as deterministic choices, but as probability distributions.
+### The Engine (XGBoost)
+We trained an **XGBoost Classifier** on historical ATP match data (2023-2026) to predict the win probability of individual matchups. The model analyzes:
+* **Player status:** Height, current ATP rank, and total ranking points.
+* **Current Performance:** Performance metrics from the last 10 matches, including 1st Serve Win %, Break Points Saved, and Aces per game.
+* **Fatigue Factor:** A custom feature tracking accumulated on-court minutes during the tournament. This penalizes players who had grueling previous rounds, reflecting real-world physical limits.
+* **H2H Dynamics:** Historical head-to-head win rates between opponents.
 
-### Match Prediction (XGBoost)
-The system uses an XGBoost Classifier trained on historical ATP match data (2023-2026). The model maps a feature matrix $X \in \mathbb{R}^m$ to a probability output $P(\text{Player A wins})$.
-Core features include:
-* **Physical Attributes & Ranking:** Height, ATP Rank, Rank Points.
-* **Tournament Fatigue:** Penalizing players with high accumulated minutes in the current tournament.
-* **Recent Form:** A rolling average of the last 10 matches (1st Serve Win %, Break Points Save %, Ace per Game).
-* **H2H Matrix:** Historical Head-to-Head win rates.
+### The Tournament Simulator (Monte Carlo)
+Predicting a champion is more complex than just picking the best player. We use **Monte Carlo Simulations** to run the entire knockout bracket thousands of times. In each simulated match, the system "rolls a weighted dice" based on the XGBoost win probability to account for tournament variance and potential upsets.
 
-### Tournament Simulation (Monte Carlo)
-Predicting a tournament winner requires accounting for upsets (variance).
-* The system simulates the entire knockout bracket thousands of times.
-* For each match, the model generates a win probability (e.g., 70%). The simulation then "rolls a weighted dice" to determine who advances.
-* This Stochastic Modeling approach, based on the Law of Large Numbers, outputs the actual probability distribution of a player lifting the trophy.
 
-## 2. Repository Structure 
+## 2. Application Features
+
+* **👥 Player Pool Selection:** Initialize the tournament bracket by selecting and seeding up to 32 players from the live ATP database.
+* **📊 Tournament Prediction:** Run batch-vectorized Monte Carlo simulations (up to 10,000 iterations) to generate a probability-based leaderboard forecasting the champion.
+* **⚔️ Head-to-Head Analysis:** Fast 1v1 matchup prediction. Compare any two players via Radar Charts (Technical Form) and Bar Charts (Fatigue levels) to see why the AI favors one over the other.
+
+
+
+## 3. Tech Stack 
+
+* **Language:** Python 3.13
+* **Core ML:** XGBoost, Scikit-learn, Pandas, NumPy
+* **Visualization:** Plotly, Seaborn
+* **Interface:** Streamlit
+
+
+## 4. Repository Structure 
 
 ```
 ├── app.py                 # Main Streamlit web application
@@ -39,8 +50,7 @@ Predicting a tournament winner requires accounting for upsets (variance).
     ├── Players.csv        # Seeded players list for the current tournament
     └── formatted-data.csv # Processed dataset (Long format)
 ```
-
-## 3. Installation & Usage 
+## 5. Installation & Usage 
 
 ### Clone the repository
 
@@ -76,11 +86,4 @@ Bash
 streamlit run app.py
 ```
 
-## 4.  Application Features 
-1.  **👥 Player Selection:** Initialize the tournament bracket by selecting up to 32 players from the database.
-
-2.  **📊 Tournament Prediction:** Run batch-vectorized Monte Carlo simulations (up to 10,000 iterations) to forecast the champion.
-
-3.  **⚔️ Head to Head Prediction:** Fast 1v1 matchup analysis.
-
-##### Author: Luke VU    
+### Author: Luke VU    
