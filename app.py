@@ -286,14 +286,15 @@ with tabs[2]:
     else:
         st.markdown("**Choose iterations for Monte Carlo Simulation**:")
         st.markdown("More iterations will yield more stable and accurate predictions but will take longer to compute. For a quick preview, start with 100 iterations. For more robust results, go for 500 or 1,000 iterations.")
-        st.markdown(
-                    "🤔 How is this calculated? \n\n    "
-                    "Instead of just predicting the winner once, model plays out the *entire* tournament bracket "
-                    "from the first round to the final hundreds of times. \n\n"
-                    f"The percentage is simply: **(Total Tournament Wins ÷ {n_sim} Simulations) × 100**. \n\n"
-                    "For example, if a player wins the trophy in 250 out of 1,000 simulated alternate realities, their probability is 25%!"
-                )
         n_sim = st.select_slider(" ", options=[100, 200, 500, 1000], value=100)
+        
+        with st.expander("🤔 How is this calculated?"):
+            st.write(
+                "Instead of just predicting the winner once, the model plays out the *entire* tournament bracket "
+                "from the first round to the final hundreds of times. \n\n"
+                f"The percentage is simply: **(Total Tournament Wins ÷ {n_sim} Simulations) × 100**. \n\n"
+                "For example, if a player wins the trophy in 250 out of 1,000 simulated alternate realities, their probability is 25%!"
+            )
         btn_col, msg_col = st.columns([1, 2])
         
         with btn_col:
