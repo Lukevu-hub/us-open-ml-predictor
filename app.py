@@ -260,7 +260,7 @@ with tabs[0]:
     | Tab Name    | Function | How it works|
     | :--- | :--- | :--- |
     | **👥 1. Player Selection** | Build your tournament pool. | Select up to 32 players from the database to initialize the tournament pool. |
-    | **📊 2. Tournament Prediction** | Predict the champion. | Runs thousands of Monte Carlo iterations. Rolls a "weighted dice" based on XGBoost probabilities to simulate upsets and bracket progression and find the winner. |
+    | **📊 2. Tournament Prediction** | Predict the champion. | Runs 100-1000 iterations of Monte Carlo. It based on XGBoost probabilities to simulate upsets and bracket progression and find the winner. |
     | **⚔️ 3. Head to Head** | Quick 1v1 prediction. | To Find win probability between two selected players. Including Radar charts, Bar charts, and H2H history of 2 selected players.| |
     """)
     
