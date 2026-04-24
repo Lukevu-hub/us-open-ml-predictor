@@ -318,9 +318,17 @@ with tabs[2]:
             
             # Display execution time in the results header if available
             if 'exec_time' in st.session_state:
-                st.markdown(f"### 🏆 Simulation Results *(⏱️ {st.session_state['exec_time']:.2f}s)*")
+                st.markdown(f"### Simulation Results: ")
             else:
-                st.markdown("### 🏆 Simulation Results")
+                st.markdown("### Simulation Results")
+                
+            with st.expander("🤔 How is this calculated?"):
+                st.write(
+                    "Instead of just predicting the winner once, model plays out the *entire* tournament bracket "
+                    "from the first round to the final hundreds of times. \n\n"
+                    f"The percentage is simply: **(Total Tournament Wins ÷ {n_sim} Simulations) × 100**. \n\n"
+                    "For example, if a player wins the trophy in 250 out of 1,000 simulated alternate realities, their probability is 25%!"
+                )
                 
             res_col1, res_col2 = st.columns([1, 2])
             
