@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import xgboost as xgb
-from sklearn.preprocessing import StandardScaler
 import plotly.express as px
 import plotly.graph_objects as go
 import os
+import joblib 
 
 # --- Page Configuration ---
 st.set_page_config(page_title="US Open 2026 AI Predictor", page_icon="🎾", layout="wide")
@@ -43,6 +43,7 @@ def convert_to_long_format(df):
 def initialize_system():
     base_dir = os.path.dirname(__file__)
     base_path = os.path.join(base_dir, 'data')
+    model_dir = os.path.join(base_dir, 'models') 
     
     try:
         dfs = []
@@ -59,7 +60,6 @@ def initialize_system():
         df_raw = pd.concat(dfs, ignore_index=True)
         df = convert_to_long_format(df_raw)
     
-
         # 1. Feature Engineering
         df = df.sort_values(by=['tourney_id', 'player_name', 'match_num'])
         df['acc_played_minutes'] = df.groupby(['tourney_id', 'player_name'])['minutes'].transform(lambda x: x.shift(1).fillna(0).cumsum())
@@ -82,7 +82,6 @@ def initialize_system():
         df.fillna(0, inplace=True)
 
         # 3. Create O(1) H2H Cache (Dictionary) for fast lookup during simulation
-        # Last match of each pair will have the most updated H2H stats, so we can build a cache from that.
         h2h_latest = df.drop_duplicates(subset=['player_name', 'opponent_name'], keep='last')
         h2h_cache = {}
         for _, row in h2h_latest.iterrows():
@@ -90,7 +89,6 @@ def initialize_system():
             p2 = row['opponent_name']
             if p1 not in h2h_cache:
                 h2h_cache[p1] = {}
-            # Update cache with the latest H2H stats for this pair
             total = row['h2h_total_matches'] + 1
             wins = row['h2h_wins'] + row['result']
             h2h_cache[p1][p2] = {'total': total, 'win_rate': wins / total}
@@ -98,18 +96,18 @@ def initialize_system():
         # 4. Create Latest Stats Cache per player
         latest_stats = df.drop_duplicates(subset=['player_name'], keep='last').set_index('player_name')
 
-        # 5. Model Training
+        # 5. Model Loading and Feature Definition
         ml_features = ['player_ht', 'player_rank', 'player_rank_points', 'acc_played_minutes',
                        'avg_1st_srv_won_last_10', 'avg_bp_save_rate_last_10', 'avg_ace_per_game_last_10',
                        'h2h_total_matches', 'h2h_win_rate']
         
-        df_ml = df[ml_features + ['result']].dropna().reset_index(drop=True)
-        X = df_ml[ml_features]
-        y = df_ml['result']
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        model = xgb.XGBClassifier(n_estimators=200, learning_rate=0.01, max_depth=3, random_state=42, eval_metric='logloss')
-        model.fit(X_scaled, y)
+        try:
+            model = joblib.load(os.path.join(model_dir, 'best_xgb_model.pkl'))
+            scaler = joblib.load(os.path.join(model_dir, 'scaler.pkl'))
+            imputer = joblib.load(os.path.join(model_dir, 'imputer.pkl'))
+        except Exception as e:
+            st.error(f"Error loading models: {e}. Ensure .pkl files exist in the 'models' directory.")
+            st.stop()
 
         # 6. Load Players List
         try:
@@ -120,44 +118,78 @@ def initialize_system():
             st.error(f"Error loading Players.csv: {e}")
             players_df = pd.DataFrame(columns=['seed', 'name'])
 
-        return df, model, scaler, players_df, ml_features, latest_stats, h2h_cache
+        # CẬP NHẬT: Trả về thêm imputer
+        return df, model, scaler, imputer, players_df, ml_features, latest_stats, h2h_cache
     except Exception as e:
         st.error(f"Initialization Error: {e}")
         st.stop()
 
 # --- Logic Functions (Vectorized) ---
-def predict_batch_proba(match_pairs, latest_stats, h2h_cache, model, scaler, ml_features):
+def predict_batch_proba(match_pairs, latest_stats, h2h_cache, model, scaler, imputer, ml_features, sim_minutes=None):
     """Predict probabilities for a batch of matches using matrix multiplication."""
     if not match_pairs:
         return []
         
-    X_batch = np.zeros((len(match_pairs), len(ml_features)))
+    X_batch_p1 = np.zeros((len(match_pairs), len(ml_features)))
+    X_batch_p2 = np.zeros((len(match_pairs), len(ml_features)))
     
     for i, (p1, p2) in enumerate(match_pairs):
-        # Player 1 data (O(1) lookup from latest_stats DataFrame)
+        # Player 1 data 
         p1_data = latest_stats.loc[p1].copy() if p1 in latest_stats.index else pd.Series(dtype=float)
         
-        # H2H data (O(1) lookup from h2h_cache dictionary)
-        h2h_info = h2h_cache.get(p1, {}).get(p2, {'total': 0, 'win_rate': 0.5})
-        p1_data['h2h_total_matches'] = h2h_info['total']
-        p1_data['h2h_win_rate'] = h2h_info['win_rate']
+        h2h_info_p1 = h2h_cache.get(p1, {}).get(p2, {'total': 0, 'win_rate': 0.5})
+        p1_data['h2h_total_matches'] = h2h_info_p1['total']
+        p1_data['h2h_win_rate'] = h2h_info_p1['win_rate']
         
-        # Fill in the feature vector for player 1
-        for j, feat in enumerate(ml_features):
-            X_batch[i, j] = p1_data.get(feat, 0)
+        if sim_minutes is not None:
+            p1_data['acc_played_minutes'] = sim_minutes.get(p1, 0)
+        else:
+            p1_data['acc_played_minutes'] = 0
             
-    # Scale and predict probabilities for the batch
-    X_scaled = scaler.transform(X_batch) # Validate format based on scaler fit
-    probs = model.predict_proba(X_scaled)[:, 1]
+        # Player 2 data
+        p2_data = latest_stats.loc[p2].copy() if p2 in latest_stats.index else pd.Series(dtype=float)
+        
+        h2h_info_p2 = h2h_cache.get(p2, {}).get(p1, {'total': 0, 'win_rate': 0.5})
+        p2_data['h2h_total_matches'] = h2h_info_p2['total']
+        p2_data['h2h_win_rate'] = h2h_info_p2['win_rate']
+        
+        if sim_minutes is not None:
+            p2_data['acc_played_minutes'] = sim_minutes.get(p2, 0)
+        else:
+            p2_data['acc_played_minutes'] = 0
+        
+        # Fill in the feature vectors
+        for j, feat in enumerate(ml_features):
+            X_batch_p1[i, j] = p1_data.get(feat, np.nan)
+            X_batch_p2[i, j] = p2_data.get(feat, np.nan)
+            
+    # Predict for Player 1
+    X_imputed_p1 = imputer.transform(X_batch_p1)
+    X_scaled_p1 = scaler.transform(X_imputed_p1)
+    probs_p1 = model.predict_proba(X_scaled_p1)[:, 1]
+
+    # Predict for Player 2
+    X_imputed_p2 = imputer.transform(X_batch_p2)
+    X_scaled_p2 = scaler.transform(X_imputed_p2)
+    probs_p2 = model.predict_proba(X_scaled_p2)[:, 1]
+    
+    # Normalize probabilities to make the prediction symmetric
+    sum_probs = probs_p1 + probs_p2
+    probs = np.where(sum_probs == 0, 0.5, probs_p1 / sum_probs)
+    
     return probs
 
-def run_monte_carlo(draw_list, n_iter, latest_stats, h2h_cache, model, scaler, ml_features):
+def run_monte_carlo(draw_list, n_iter, latest_stats, h2h_cache, model, scaler, imputer, ml_features):
     results = {p: 0 for p in draw_list}
     prog_bar = st.progress(0)
     
     for i in range(n_iter):
         if i % 500 == 0: prog_bar.progress(i/n_iter)
         current_round = list(draw_list)
+        np.random.shuffle(current_round) # Shuffle players for a random draw each iteration
+        
+        # Track simulated minutes to simulate tournament fatigue properly
+        sim_minutes = {p: 0 for p in draw_list}
         
         while len(current_round) > 1:
             next_round = []
@@ -167,13 +199,16 @@ def run_monte_carlo(draw_list, n_iter, latest_stats, h2h_cache, model, scaler, m
             for j in range(0, len(current_round) - 1, 2):
                 match_pairs.append((current_round[j], current_round[j+1]))
                 
-            # Predict all matches in the current round using Vectorization
-            probs = predict_batch_proba(match_pairs, latest_stats, h2h_cache, model, scaler, ml_features)
+            probs = predict_batch_proba(match_pairs, latest_stats, h2h_cache, model, scaler, imputer, ml_features, sim_minutes)
             
             # Determine winners
             for idx, (p1, p2) in enumerate(match_pairs):
                 winner = p1 if np.random.random() < probs[idx] else p2
                 next_round.append(winner)
+                
+                # Increment fatigue for both players (average match ~120 mins)
+                sim_minutes[p1] += 120
+                sim_minutes[p2] += 120
                 
             # Handle the case of an odd number of players (Bye)
             if len(current_round) % 2 != 0: 
@@ -188,7 +223,7 @@ def run_monte_carlo(draw_list, n_iter, latest_stats, h2h_cache, model, scaler, m
     return pd.DataFrame(list(results.items()), columns=['Player', 'Wins']).sort_values('Wins', ascending=False)
 
 # --- APP FLOW ---
-df, model, scaler, players_df, ml_features, latest_stats, h2h_cache = initialize_system()
+df, model, scaler, imputer, players_df, ml_features, latest_stats, h2h_cache = initialize_system()
 
 st.title("🏆 US Open AI Predictor")
 st.markdown(f"**Author**: Luke VU | **Data:** {len(df)} Matches  |  **Model:** XGBoost")
@@ -252,7 +287,7 @@ with tabs[2]:
             
         if start_sim:
             with st.spinner(f"Simulating {n_sim} scenarios..."):
-                sim_res = run_monte_carlo(active_list, n_sim, latest_stats, h2h_cache, model, scaler, ml_features)
+                sim_res = run_monte_carlo(active_list, n_sim, latest_stats, h2h_cache, model, scaler, imputer, ml_features)
                 st.session_state['sim_data'] = sim_res
             with msg_col:
                 st.success("Completed!")
@@ -280,7 +315,7 @@ with tabs[2]:
                         fig = px.bar(data.head(5), x='Win Prob (%)', y='Player', orientation='h', color='Win Prob (%)', color_continuous_scale='Greens')
                         fig.update_layout(
                             yaxis={'categoryorder':'total ascending'},
-                            margin=dict(l=0, r=0, t=0, b=0), # Tối ưu lề để chart to hơn
+                            margin=dict(l=0, r=0, t=0, b=0), 
                             height=350
                         )
                         st.plotly_chart(fig, use_container_width=True)
@@ -303,7 +338,8 @@ with tabs[3]:
         # 2. PROBABILITY & LATEST STATS
         p1_stats = df[df['player_name'] == p1].iloc[-1]
         p2_stats = df[df['player_name'] == p2].iloc[-1]
-        prob = predict_batch_proba([(p1, p2)], latest_stats, h2h_cache, model, scaler, ml_features)[0]
+        
+        prob = predict_batch_proba([(p1, p2)], latest_stats, h2h_cache, model, scaler, imputer, ml_features)[0]
 
         # 3. COMPACT METRICS 
         with col_a:
