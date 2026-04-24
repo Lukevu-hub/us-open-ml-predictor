@@ -247,25 +247,23 @@ tabs = st.tabs(["📖 Readme", "👥 1. Player Selection", "📊 2. Tournament P
 
 # --- TAB 0: README  ---
 with tabs[0]:
-    st.header("Welcome to the application!")
+    st.header("Welcome!")
     st.markdown("This application uses Machine Learning (XGBoost) and Stochastic Modeling (Monte Carlo) to predict tennis match outcomes. The prediction relies on a standardized feature matrix capturing 4 core pillars:")  
     st.markdown("""
-    * 📏 **Physical & Ranking:** Height (`player_ht`), ATP Rank (`player_rank`), and Rank Points (`player_rank_points`).
-    * 🔋 **Tournament Fatigue:** Accumulated minutes played (`acc_played_minutes`) in the current tournament to penalize exhausted players.
-    * 📈 **Technical Attributes (Last 10 Games):** 1st Serve Win %(`avg_1st_srv_won_last_10`), Break Point Save % (`avg_bp_save_rate_last_10`), and Aces per game (`avg_ace_per_game_last_10`) to capture current momentum.
-    * ⚔️ **Head-to-Head (H2H):** Total historical encounters and specific H2H Win Rate (`h2h_total_matches`, `h2h_win_rate`) between two players.""")
+    * **Physical & Ranking:** Height (`player_ht`), ATP Rank (`player_rank`), and Rank Points (`player_rank_points`).
+    * **Tournament Fatigue:** Accumulated minutes played (`acc_played_minutes`) in the current tournament to penalize exhausted players.
+    * **Technical Attributes (Last 10 Games):** 1st Serve Win %(`avg_1st_srv_won_last_10`), Break Point Save % (`avg_bp_save_rate_last_10`), and Aces per game (`avg_ace_per_game_last_10`) to capture current momentum.
+    * **Head-to-Head (H2H):** Total historical encounters and specific H2H Win Rate (`h2h_total_matches`, `h2h_win_rate`) between two players.""")
 
-    st.markdown("#### Application Navigation")
+    st.markdown("#### Navigation")
     st.markdown("""
-    | Tab Name    | Function | How it works|
+    | Tab     | Function | Explain|
     | :--- | :--- | :--- |
-    | **👥 1. Player Selection** | Build your tournament pool. | Select up to 32 players from the database to initialize the tournament pool. |
-    | **📊 2. Tournament Prediction** | Predict the champion. | Runs 100-1000 iterations of Monte Carlo. It based on XGBoost probabilities to simulate upsets and bracket progression and find the winner. |
-    | **⚔️ 3. Head to Head** | Quick 1v1 prediction. | To Find win probability between two selected players. Including Radar charts, Bar charts, and H2H history of 2 selected players.| |
+    | **👥 1. Player Selection** | Build your tournament pool. | Select up to 32 players from the pool to initialize the tournament. |
+    | **📊 2. Tournament Prediction** | Predict the champion. | Runs 100-1000 times of Monte Carlo to simulate upsets and bracket progression and find the winner. |
+    | **⚔️ 3. Head to Head** | Quick 1v1 prediction. | To find out the win probability between two selected players.| |
     """)
     
-    st.info("💡 **Workflow Tip:** Start by selecting your players in Tab 1, then proceed to the other tabs to run simulations or analyze specific match-ups.")
-
 # --- TAB 1: PLAYER MANAGEMENT ---
 with tabs[1]:
     remaining_options = [p for p in all_db_players if p not in st.session_state['selected_players']]
@@ -284,21 +282,17 @@ with tabs[2]:
     if len(active_list) < 2:
         st.error("Please select more players in the 'Player Selection' tab.")
     else:
-        st.markdown("**Choose iterations for Monte Carlo Simulation**:")
-        st.markdown("More iterations will yield more stable and accurate predictions but will take longer to compute. For a quick preview, start with 100 iterations. For more robust results, go for 500 or 1,000 iterations.")
-        n_sim = st.select_slider(" ", options=[100, 200, 500, 1000], value=100)
+        st.markdown("**How it works**: The model predicts the winner of entire tournament for N times. \n\n"
+                     "The winner probability is simply the percentage of total times they lift the trophy (e.g., 250 wins in 1,000 times = 25%).")
+        st.markdown("**Choose iterations**: 100: Quick preview and 1,000: Slower, but more accurate.")
         
-        with st.expander("🤔 How is this calculated?"):
-            st.write(
-                "Instead of just predicting the winner once, the model plays out the *entire* tournament bracket "
-                "from the first round to the final hundreds of times. \n\n"
-                f"The percentage is simply: **(Total Tournament Wins ÷ {n_sim} Simulations) × 100**. \n\n"
-                "For example, if a player wins the trophy in 250 out of 1,000 simulated alternate realities, their probability is 25%!"
-            )
-        btn_col, msg_col = st.columns([1, 2])
+        col1, btn_col, msg_col = st.columns([2, 1, 2])
         
+        with col1:
+            n_sim = st.select_slider("Iterations", options=[100, 200, 500, 1000], value=100, label_visibility="collapsed")
+            
         with btn_col:
-            start_sim = st.button("🚀 Start Simulation", type="primary", use_container_width=True)
+            start_sim = st.button("🚀 Start ", type="primary", use_container_width=True)
             
         if start_sim:
             # Start the execution timer
