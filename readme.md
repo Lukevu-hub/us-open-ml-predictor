@@ -23,7 +23,7 @@ Predicting a champion is more complex than just picking the best player. We use 
 ## 2. Application Features
 
 * **👥 Player Pool Selection:** Initialize the tournament bracket by selecting and seeding up to 32 players from the live ATP database.
-* **📊 Tournament Prediction:** Run batch-vectorized Monte Carlo simulations (up to 10,000 iterations) to generate a probability-based leaderboard forecasting the champion.
+* **📊 Tournament Prediction:** Run batch-vectorized Monte Carlo simulations (up to 10,000 iterations if run locally) to generate a probability-based leaderboard forecasting the champion.
 * **⚔️ Head-to-Head Analysis:** Fast 1v1 matchup prediction. Compare any two players via Radar Charts (Technical Form) and Bar Charts (Fatigue levels) to see why the AI favors one over the other.
 
 
