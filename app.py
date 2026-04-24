@@ -320,9 +320,9 @@ with tabs[2]:
             
             # Display execution time in the results header if available
             if 'exec_time' in st.session_state:
-                st.markdown(f"### Simulation Results: ")
+                st.markdown(f"### Results: ")
             else:
-                st.markdown("### Simulation Results")
+                st.markdown("### Results")
                 
             res_col1, res_col2 = st.columns([1, 2])
             
