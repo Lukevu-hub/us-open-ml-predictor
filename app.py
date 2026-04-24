@@ -9,7 +9,7 @@ import os
 import joblib 
 
 # --- Page Configuration ---
-st.set_page_config(page_title="US Open 2026 AI Predictor", page_icon="🎾", layout="wide")
+st.set_page_config(page_title="US Open 2026 ML Predictor", page_icon="🎾", layout="wide")
 
 IOC_FLAGS = {
     'ITA': '🇮🇹', 'ESP': '🇪🇸', 'GER': '🇩🇪', 'USA': '🇺🇸', 'GBR': '🇬🇧',
@@ -232,7 +232,7 @@ def run_monte_carlo(draw_list, n_iter, latest_stats, h2h_cache, model, scaler, i
 # --- APP FLOW ---
 df, model, scaler, imputer, players_df, ml_features, latest_stats, h2h_cache = initialize_system()
 
-st.title("🏆 US Open AI Predictor")
+st.title("🏆 US Open ML Predictor")
 st.markdown(f"**Author**: Luke VU | **Data:** {len(df)} Matches  |  **Model:** XGBoost")
 # --- Player Selection ---
 

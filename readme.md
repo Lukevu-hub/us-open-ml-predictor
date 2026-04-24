@@ -1,4 +1,4 @@
-# 🏆 US Open 2026 AI Predictor
+# 🏆 US Open 2026 ML Predictor
 
 ![Python](https://img.shields.io/badge/Python-3.13-blue.svg)
 ![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=streamlit&logoColor=white)
