@@ -285,8 +285,8 @@ with tabs[2]:
         st.error("Please select more players in the 'Player Selection' tab.")
     else:
         st.markdown("**Choose iterations for Monte Carlo Simulation**:")
-        st.markdown("More iterations will yield more stable and accurate predictions but will take longer to compute. For a quick preview, start with 1,000 iterations. For more robust results, go for 5,000 or 10,000 iterations.")
-        n_sim = st.select_slider(" ", options=[1000, 2000, 5000, 10000], value=1000)
+        st.markdown("More iterations will yield more stable and accurate predictions but will take longer to compute. For a quick preview, start with 100 iterations. For more robust results, go for 500 or 1,000 iterations.")
+        n_sim = st.select_slider(" ", options=[100, 200, 500, 1000], value=100)
         btn_col, msg_col = st.columns([1, 2])
         
         with btn_col:
