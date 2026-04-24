@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 import pandas as pd
 import numpy as np
 import xgboost as xgb
@@ -283,7 +284,7 @@ with tabs[2]:
     if len(active_list) < 2:
         st.error("Please select more players in the 'Player Selection' tab.")
     else:
-        st.markdown("**Chose iterations for Monte Carlo Simulation**:")
+        st.markdown("**Choose iterations for Monte Carlo Simulation**:")
         st.markdown("More iterations will yield more stable and accurate predictions but will take longer to compute. For a quick preview, start with 1,000 iterations. For more robust results, go for 5,000 or 10,000 iterations.")
         n_sim = st.select_slider(" ", options=[1000, 2000, 5000, 10000], value=1000)
         btn_col, msg_col = st.columns([1, 2])
@@ -292,39 +293,57 @@ with tabs[2]:
             start_sim = st.button("🚀 Start Simulation", type="primary", use_container_width=True)
             
         if start_sim:
+            # Start the execution timer
+            start_time = time.time()
+            
             with st.spinner(f"Simulating {n_sim} scenarios..."):
                 sim_res = run_monte_carlo(active_list, n_sim, latest_stats, h2h_cache, model, scaler, imputer, ml_features)
                 st.session_state['sim_data'] = sim_res
+            
+            # Stop the timer and calculate execution time
+            end_time = time.time()
+            exec_time = end_time - start_time
+            
+            # Store the execution time in session state so it persists across UI re-renders
+            st.session_state['exec_time'] = exec_time 
+            
             with msg_col:
-                st.success("Completed!")
+                # Display the execution time inside the success message
+                st.success(f"Completed in {exec_time:.2f} seconds!")
 
         if 'sim_data' in st.session_state:
-                    data = st.session_state['sim_data']
-                    data['Win Prob (%)'] = (data['Wins'] / n_sim) * 100
-                    data = data.sort_values('Win Prob (%)', ascending=False)
-                    st.markdown("### 🏆 Simulation Results")
-                    res_col1, res_col2 = st.columns([1, 2])
-                    
-                    with res_col1:
-                        # Top 1
-                        top_winner = data.iloc[0]
-                        st.metric(label="🥇 Tournament Winner:", value=top_winner['Player'], delta=f"{top_winner['Win Prob (%)']:.1f}% Chance")
-                        
-                        st.divider()
-                        
-                        # Top 2 
-                        runner_up = data.iloc[1]
-                        st.metric(label="🥈 Runner-Up:", value=runner_up['Player'], delta=f"{runner_up['Win Prob (%)']:.1f}% Chance", delta_color="normal")
+            data = st.session_state['sim_data']
+            data['Win Prob (%)'] = (data['Wins'] / n_sim) * 100
+            data = data.sort_values('Win Prob (%)', ascending=False)
+            
+            # Display execution time in the results header if available
+            if 'exec_time' in st.session_state:
+                st.markdown(f"### 🏆 Simulation Results *(⏱️ {st.session_state['exec_time']:.2f}s)*")
+            else:
+                st.markdown("### 🏆 Simulation Results")
+                
+            res_col1, res_col2 = st.columns([1, 2])
+            
+            with res_col1:
+                # Top 1
+                top_winner = data.iloc[0]
+                st.metric(label="🥇 Tournament Winner:", value=top_winner['Player'], delta=f"{top_winner['Win Prob (%)']:.1f}% Chance")
+                
+                st.divider()
+                
+                # Top 2 
+                runner_up = data.iloc[1]
+                st.metric(label="🥈 Runner-Up:", value=runner_up['Player'], delta=f"{runner_up['Win Prob (%)']:.1f}% Chance", delta_color="normal")
 
-                    with res_col2:
-                        # Top 10:
-                        fig = px.bar(data.head(5), x='Win Prob (%)', y='Player', orientation='h', color='Win Prob (%)', color_continuous_scale='Greens')
-                        fig.update_layout(
-                            yaxis={'categoryorder':'total ascending'},
-                            margin=dict(l=0, r=0, t=0, b=0), 
-                            height=350
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
+            with res_col2:
+                # Top 5 Chart
+                fig = px.bar(data.head(5), x='Win Prob (%)', y='Player', orientation='h', color='Win Prob (%)', color_continuous_scale='Greens')
+                fig.update_layout(
+                    yaxis={'categoryorder':'total ascending'},
+                    margin=dict(l=0, r=0, t=0, b=0), 
+                    height=350
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
 # --- TAB 3: HEAD-TO-HEAD & DETAILED ANALYSIS ---
 with tabs[3]:
