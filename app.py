@@ -191,7 +191,7 @@ def run_monte_carlo(draw_list, n_iter, latest_stats, h2h_cache, model, scaler, i
     prog_bar = st.progress(0)
     
     for i in range(n_iter):
-        if i % 500 == 0: prog_bar.progress(i/n_iter)
+        if i % max(1, n_iter // 10) == 0: prog_bar.progress(i/n_iter)
         current_round = list(draw_list)
         np.random.shuffle(current_round) # Shuffle players for a random draw each iteration
         
