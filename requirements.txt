@@ -1,10 +1,19 @@
-numpy
-pandas
+# Core
+numpy>=1.24
+pandas>=2.0
+scikit-learn>=1.3
+xgboost>=2.0
+joblib
+
+# Visualization
 matplotlib
-scikit-learn
-plotly
-nbformat
 seaborn
-altair<5
-streamlit
-xgboost
+plotly>=5.18
+
+# App
+streamlit>=1.50
+
+# Notebook
+ipykernel
+nbformat>=4.2.0
+
