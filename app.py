@@ -252,6 +252,16 @@ with tabs[2]:
         st.markdown("**How it works**: the model plays out the entire tournament N times. "
                     "A player's title probability is the share of simulations they win "
                     "(e.g. 250 titles in 1,000 runs = 25%).")
+        with st.expander("How is each match decided?"):
+            st.markdown(
+                    "1. The model gives **p**, Player 1's chance to win, from ranking, form, fatigue and head-to-head.\n"
+                    "2. A random number **r** between 0 and 1 is drawn: **Player 1 wins if r < p**, "
+                    "so a 70% favorite wins about 7 times out of 10.\n"
+                    "3. Match length is drawn from real Grand Slam matches and added to both players' fatigue.\n"
+                    "4. Winners advance until one champion remains.\n\n"
+                    "**Why random?** About a third of real matches are upsets. If the favorite always advanced, "
+                    "the top seed would win 100% of the time."
+                )
 
         col0, col1, col2, btn_col = st.columns([2, 2, 2, 1])
         with col0:

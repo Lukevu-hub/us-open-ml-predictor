@@ -20,8 +20,45 @@ Each match is one row comparing the two players. Features are the **difference**
 * **Physical:** height
 
 ### Tournament simulator (Monte Carlo)
-Winning a Slam means winning 5 matches in a row against opponents that depend on earlier results, so there's no single prediction to make. The app plays out the whole bracket up to 5,000 times, deciding each match randomly using the model's probability, so upsets happen at a realistic rate. A player's title chance is the share of simulations they win. Simulations are vectorized: 1,000 tournaments run in well under a second.
+The model predicts **one match**, but a title requires winning five matches in a row, against opponents that depend on earlier results and with fatigue that depends on each player's path. There's no simple formula for that, so the app **plays out the whole bracket many times and counts**.
 
+One simulated tournament:
+1. **Draw:** seeded bracket (1 vs 32, 16 vs 17, …) like the real event, or reshuffled every run.
+2. **Each match:** the model gives P(Player 1 wins) = p. A random number r between 0 and 1 is drawn; Player 1 wins if r < p. So a p = 0.70 favorite wins about 70% of the time, and upsets happen at a realistic rate.
+3. **Fatigue:** each match length is sampled from real Grand Slam matches and added to both players' minutes, which the model uses in later rounds.
+4. **Repeat** each round until one champion remains.
+
+Repeated N times (up to 5,000), a player's **title probability = titles ÷ N**. With 1,000 runs, a 20% estimate is accurate to about ±1.3 percentage points.
+
+**Why random, not "the favorite always advances"?** The model's probabilities are calibrated (70% predictions win about 70% of the time), and about one-third of real test matches were won by the lower-rated player. Always advancing the favorite would produce zero upsets and give the top seed a 100% title chance. Sampling from p reproduces the real upset rate.
+
+**Speed:** all N tournaments are simulated in parallel. Each round is a single batched model call, so 1,000 tournaments run in well under a second.
+
+```mermaid
+flowchart TD
+    A["Match data<br/>ATP 2023–2026"] --> B["Current player profiles<br/>rank, form, H2H"]
+    B --> C
+
+    subgraph SIM ["Repeat N times (e.g. 1,000)"]
+        C["Build the draw<br/>seeded or random"] --> D["Model predicts p<br/>features → win probability"]
+        D --> E["Random draw<br/>Player 1 wins if r is below p"]
+        E --> F["Winner advances<br/>+ match minutes (fatigue)"]
+        F -- "next round" --> D
+        F -- "one player left" --> G["Champion +1"]
+    end
+
+    G --> H["Count results<br/>Title % = titles ÷ N"]
+
+    classDef data fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A
+    classDef model fill:#EEEDFE,stroke:#534AB7,color:#26215C
+    classDef random fill:#FAECE7,stroke:#993C1D,color:#4A1B0C
+    classDef result fill:#E1F5EE,stroke:#0F6E56,color:#04342C
+    class A,C,F data
+    class B,D model
+    class E random
+    class G,H result
+```
+*Purple = deterministic (features and model) · Coral = the only random step · Green = results*
 ## 2. Results
 
 Trained on ATP matches 2023–2025, tested on the following ~1,000 matches (time-based split, both players ranked in the top 100):
