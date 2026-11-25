@@ -193,3 +193,87 @@ def prepare(data_dir):
     df = clean_matches(load_raw(data_dir))
     df = convert_to_long_format(df)
     return add_h2h(add_form(add_fatigue(df)))
+
+# ===========================================================================
+# Helpers for the Streamlit app (predicting FUTURE matches)
+# ===========================================================================
+RATIO_COLS = ['1st_srv_in', '1st_srv_won', 'bp_save_rate', 'ace_per_game']
+MINUTES_IDX = PLAYER_FEATURES.index('acc_played_minutes')
+
+
+def player_snapshot(df):
+    """
+    Each player's CURRENT features, for predicting their next match.
+    Input: the output of prepare(). Output: one row per player, indexed by player_name.
+
+    Unlike the training rows, the last-10 form here INCLUDES the player's most
+    recent match, because that match is now in the past.
+    """
+    df = df.sort_values(['player_id', 'tourney_date', 'tourney_id', 'match_num'])
+
+    # Form: average of the last 10 matches (NaN ratios are skipped, like in add_form)
+    last10 = df.groupby('player_id').tail(10)
+    form = last10.groupby('player_id')[RATIO_COLS + ['result']].mean()
+    form.columns = [f'avg_{c}_last_10' for c in RATIO_COLS] + ['win_rate_last_10']
+
+    # Latest rank, points and profile from each player's most recent match
+    info_cols = ['player_name', 'player_rank', 'player_rank_points', 'player_ht',
+                 'player_age', 'player_ioc', 'tourney_date']
+    latest = df.groupby('player_id').tail(1).set_index('player_id')[info_cols]
+
+    snap = latest.join(form)
+    snap['log_rank'] = np.log(snap['player_rank'].replace(0, np.nan))
+    snap['acc_played_minutes'] = 0.0                    # fresh at the start of a tournament
+    snap['matches_in_data'] = df.groupby('player_id').size()
+
+    # If two ids share a name (rare), keep the most recently active one
+    return (snap.sort_values('tourney_date')
+                .drop_duplicates('player_name', keep='last')
+                .set_index('player_name'))
+
+
+def h2h_table(df):
+    """All-time head-to-head record for every player pair (by name)."""
+    t = (df.groupby(['player_name', 'opponent_name'])['result']
+           .agg(wins='sum', matches='count').reset_index())
+    t['win_rate'] = t['wins'] / t['matches']
+    return t
+
+
+def h2h_matrices(names, h2h):
+    """(n, n) arrays: rate[i, j] = i's H2H win rate vs j (0.5 if never met), count[i, j] = meetings."""
+    idx = {n: i for i, n in enumerate(names)}
+    rate = np.full((len(names), len(names)), 0.5)
+    count = np.zeros((len(names), len(names)))
+    sub = h2h[h2h['player_name'].isin(idx) & h2h['opponent_name'].isin(idx)]
+    for p, o, r, m in sub[['player_name', 'opponent_name', 'win_rate', 'matches']].itertuples(index=False):
+        rate[idx[p], idx[o]] = r
+        count[idx[p], idx[o]] = m
+    return rate, count
+
+
+def predict_proba_symmetric(model, A, B, h2h_rate_a, h2h_matches):
+    """
+    P(player A beats player B) for many matches at once.
+    A, B: arrays of shape (n, len(PLAYER_FEATURES)) in PLAYER_FEATURES order.
+
+    The model is asked both ways round (A vs B and B vs A) and the answers are
+    averaged, so P(A beats B) = 1 - P(B beats A) exactly. Without this, the
+    result could depend on which player happens to be listed first.
+    """
+    A, B = np.asarray(A, float), np.asarray(B, float)
+    rate_a = np.asarray(h2h_rate_a, float)
+    n = np.asarray(h2h_matches, float)
+    X_ab = np.column_stack([A - B, rate_a, n])           # same column order as FEATURE_COLS
+    X_ba = np.column_stack([B - A, 1 - rate_a, n])
+    p_ab = model.predict_proba(X_ab)[:, 1]
+    p_ba = model.predict_proba(X_ba)[:, 1]
+    return (p_ab + (1 - p_ba)) / 2
+
+
+def slam_minutes(df):
+    """Observed Grand Slam match lengths, used to simulate fatigue in the app."""
+    m = df.loc[(df['result'] == 1) & (df['tourney_level'] == 'G'), 'minutes'].dropna()
+    if len(m) < 30:                                       # fallback if few Slam matches
+        m = df.loc[df['result'] == 1, 'minutes'].dropna()
+    return m.to_numpy(float)
